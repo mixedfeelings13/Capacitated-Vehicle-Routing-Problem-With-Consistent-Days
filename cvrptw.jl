@@ -57,7 +57,14 @@ model = Model(Gurobi.Optimizer)
 # Función objetivo
 @objective(model, Min, sum(c[i, j] * x[i, j, k] for i in C, j in C, k in V))
 # Vehiculo debe comenzar y terminar en el deposito
-
+# Restricción de inicio y fin en el depósito para cada vehículo
+# @constraint(model, start_at_depot[k in V], sum(x[1, j, k] for j in C) == 1)  # Vehicle starts at the depot
+# @constraint(model, end_at_depot[k in V], sum(x[j, 1, k] for j in C) == 1)  # Vehicle ends at the depot
+# Restricción de inicio y fin en el depósito para cada vehículo
+# for k in V
+#     @constraint(model, sum(x[1, j, k] for j in C) == 1)  # Vehicle starts at the depot
+#     @constraint(model, sum(x[j, 1, k] for j in C) == 1)  # Vehicle ends at the depot
+# end
 # Restricción de visita única para cada cliente
 @constraint(model, visit_once[i in C], sum(x[i, j, k] for j in C, k in V) == 1)
 # Restricción de capacidad para cada vehículo
@@ -69,7 +76,6 @@ for k in V
         @constraint(model, sum(service_times[i]*x[i,j,k] for j in C) + tiempo_llegada[i,k] >= earliest_start[i])
     end
 end
-
 # Ventanas de tiempo prohibidas
 for k in V
     for i in C
