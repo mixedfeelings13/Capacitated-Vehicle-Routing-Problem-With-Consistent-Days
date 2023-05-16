@@ -9,9 +9,9 @@ using Colors
 Random.seed!()
 
 
-n = 15 # número de clientes
-Q = 10 # capacidad de los vehículos
-K = 10 # número de vehículos
+n = 7 # número de clientes
+Q = 8 # capacidad de los vehículos
+K = 2 # número de vehículos
 M = 1000 # Valor grande para la restricción
 # Variables para limpiar
 C = 1:n # 1 a n = clientes
@@ -19,7 +19,7 @@ V = 1:K # 1 a K = vehículos
 days = 1:3
 
 # Número de demanda aleatoria
-demands = [[rand(0:10) for i in C] for d in days]
+demands = [[rand(0:8) for i in C] for d in days]
 # println(d)
 # println(demands)
 # si imprime 3 demandas para 3 dias de 15 clientes
@@ -88,15 +88,35 @@ solution = value.(x)
 arrival_times = value.(arrival_time)
 
 # Imprimir la ruta de cada vehículo
+print("\t")
 for d in days
-    println("día $d:")
-    for k in V
-        println("Vehículo $k:")
-        route = [i for i in C if any(solution[i, j, k, d] > 0.5 for j in C)]
-        println(route)
-    end
-    println()
+    printstyled("\tDía $d\t\t|"; color = :blue)
 end
+print("\n")
+routes = Dict{Int, Vector{Int}}()
+for k in V
+    for d in days
+        routes[d] = [i for i in C if any(solution[i, j, k, d] > 0.5 for j in C)]
+    end
+    printstyled("Vehículo $k:\t"; color = :green)
+    for d in days
+        route = routes[d]
+        tabs="\t"
+
+        if isempty(route)
+            route = "No hay ruta"
+        #Convertir la ruta en strings y unirlas para saber cuantos caracteres ocupa en la terminal
+        elseif(length(join(string.(route), ", ")) < 6)         
+            tabs="\t\t"
+        end
+        # l = length(join(string.(route), ", "));
+        # print("S:$l")
+        print("$route$tabs|\t")
+    end
+    print("\n")
+end
+println()
+
 # Definir la información en plots
 routes =  Dict{Int, Vector{Int}}()
 
@@ -124,7 +144,7 @@ for d in days
     coordsRoute = [coords[i] for i in route]
     pushfirst!(coordsRoute, (10,12))
     push!(coordsRoute, (10,12))
-    plot!(coordsRoute, label = "Day $d, Route $d", linewidth = 5, legend = :topleft, palette = :rainbow)
+    plot!(coordsRoute, label = "Day $d, Route $d", arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = :rainbow)
 end
 display(p)
 savefig("Solution_Figure.pdf")
