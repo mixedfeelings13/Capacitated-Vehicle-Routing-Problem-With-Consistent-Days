@@ -110,7 +110,7 @@ p = plot()
 
 title!("Capacitated Vehicle Routing Problem With Consistent Time Windows")
 # Nodos de clientes en color rosa
-scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Customers", color = :hotpink, markersize = 15, legend = :topleft)
+scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :hotpink, markersize = 15, legend = :topleft)
 
 # define las coordenadas de las rutas
 pointsArray = []
@@ -128,8 +128,3 @@ for k in V
 end
 display(p)
 savefig("Solution_Figure.pdf")
-
-
-
-
-
