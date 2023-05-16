@@ -40,7 +40,6 @@ for i in 1:n
         if i != j
             # Generar distancia aleatoria en el rango de 1 a 6
             d = Euclidean()(coords[i], coords[j])
-
             # Asignar la distancia a la matriz de distancias
             c[i, j] = d
         end
@@ -56,15 +55,7 @@ model = Model(Gurobi.Optimizer)
 
 # Función objetivo
 @objective(model, Min, sum(c[i, j] * x[i, j, k] for i in C, j in C, k in V))
-# Vehiculo debe comenzar y terminar en el deposito
-# Restricción de inicio y fin en el depósito para cada vehículo
-# @constraint(model, start_at_depot[k in V], sum(x[1, j, k] for j in C) == 1)  # Vehicle starts at the depot
-# @constraint(model, end_at_depot[k in V], sum(x[j, 1, k] for j in C) == 1)  # Vehicle ends at the depot
-# Restricción de inicio y fin en el depósito para cada vehículo
-# for k in V
-#     @constraint(model, sum(x[1, j, k] for j in C) == 1)  # Vehicle starts at the depot
-#     @constraint(model, sum(x[j, 1, k] for j in C) == 1)  # Vehicle ends at the depot
-# end
+
 # Restricción de visita única para cada cliente
 @constraint(model, visit_once[i in C], sum(x[i, j, k] for j in C, k in V) == 1)
 # Restricción de capacidad para cada vehículo
@@ -76,6 +67,9 @@ for k in V
         @constraint(model, sum(service_times[i]*x[i,j,k] for j in C) + tiempo_llegada[i,k] >= earliest_start[i])
     end
 end
+# Restricción de fin en el depósito para cada vehículo
+@constraint(model, depot_end[k in V], sum(x[j, 1, k] for j in C) == 1)
+println(depot_end)
 # Ventanas de tiempo prohibidas
 for k in V
     for i in C
@@ -95,8 +89,6 @@ optimize!(model)
 # Obtener la solución de las variables de decisión
 solution = value.(x)
 tiempos_llegada = value.(tiempo_llegada)
-# println(value.(tiempo_llegada))
-# println(solution)
 
 # Imprimir la ruta de cada vehículo
 for k in V
@@ -105,37 +97,37 @@ for k in V
     println(route)
     println()
 end
-# Set plot title and labels
+# Definir la información en plots
 routes =  Dict{Int, Vector{Int}}()
 
 for k in V
     route = [i for i in C if any(solution[i, j, k] > 0.5 for j in C)]
     routes[k] = route
-    ## add depot to routes
 end
 
-# Display the plot
+# Mostrar el gráfico
 p = plot()
 
-title!(" Capacitated Vehicle Routing Problem With Consistent Time Windows")
-# Create a scatter plot of the customer locations with red nodes
+title!("Capacitated Vehicle Routing Problem With Consistent Time Windows")
+# Nodos de clientes en color rosa
 scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Customers", color = :hotpink, markersize = 15, legend = :topleft)
 
-# define coordsRoute
+# define las coordenadas de las rutas
 pointsArray = []
-
+#Añado el deposito visiblemente
 scatter!([10], [12], label = "Depot", color = :red, markersize = 20, legend = :topleft)
+#Cambio el tamaño para que sea más visible
 plot!(size=(2040,1080))
-# Create a scatter plot with lines in routes
+# Creo lineas para las rutas que sean visibles.
 for k in V
     route = routes[k]
     coordsRoute = [coords[i] for i in route]
-    # add depot to routes
+    pushfirst!(coordsRoute, (10,12))
     push!(coordsRoute, (10,12))
-    plot!(coordsRoute, label = "Route $k", linewidth = 5, legend = :topleft)
+    plot!(coordsRoute, label = "Route $k", linewidth = 5, legend = :topleft, palette = :rainbow)
 end
 display(p)
-savefig("test.pdf")
+savefig("Solution_Figure.pdf")
 
 
 
