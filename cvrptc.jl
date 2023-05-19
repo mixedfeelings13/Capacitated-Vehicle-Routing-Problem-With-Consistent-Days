@@ -9,14 +9,15 @@ using Colors
 Random.seed!()
 
 
-n = 15 # número de clientes
+n = 30 # número de clientes
 Q = 8 # capacidad de los vehículos
 K = 5 # número de vehículos
 M = 1000 # Valor grande para la restricción
 # Variables para limpiar
 C = 1:n # 1 a n = clientes
 V = 1:K # 1 a K = vehículos
-days = 1:3
+days = 1:5
+epsilon = 0.1
 
 # Número de demanda aleatoria
 demands = [[rand(0:8) for i in C] for d in days]
@@ -52,7 +53,7 @@ model = Model(Gurobi.Optimizer)
 @variable(model, x[C, C, V, days], Bin) # Decisión 0 o 1 para x, vehículo va o no va a un cliente
 @variable(model, arrival_time[C, days] >= 0)
 @variable(model, load[C, days])
-
+@variable(model, avg_arrival_time[C] >= 0)
 
 # Función objetivo
 @objective(model, Min, sum(c[i, j] * x[i, j, k, d] for i in C, j in C, k in V, d in days))
@@ -62,7 +63,9 @@ model = Model(Gurobi.Optimizer)
 @constraint(model, exit_once[i in C], sum(x[j, i, k, d] for j in C, d in days, k in V) == 1)
 # Restricción de capacidad para cada vehículo
 @constraint(model, capacity[k in V, d in days], sum(demands[d][i] * x[i, j, k, d] for i in C, j in C) <= Q) 
-# Restricción de ventana de tiempo consistente
+# Restricción de ventana de tiempo
+# llegada al cliente i en dia d no debe exceder latest_end
+# llegada al cliente i en dia d + hora de visita >= earliest_start
 for d in days
     for i in C
         @constraint(model, sum(x[i, j, k, d] for j in C, k in V) + arrival_time[i,d] <= latest_end[d][i])
@@ -79,7 +82,18 @@ for d in days
         end
     end
 end
+# Cálculo del tiempo de llegada medio
+for i in C
+    @constraint(model, avg_arrival_time[i] == sum(arrival_time[i, d] for d in days) / length(days))
+end
 
+# Restricción de consistencia para que los tiempos de llegada sean iguales o similares
+for d in days
+    for i in C
+        @constraint(model, arrival_time[i, d] <= avg_arrival_time[i] + epsilon)
+        @constraint(model, arrival_time[i, d] >= avg_arrival_time[i] - epsilon)
+    end
+end
 
 optimize!(model)
 
@@ -129,13 +143,17 @@ end
 for d in days
     local p = plot()
     title!("Capacitated Vehicle Routing Problem With Consistent Days. Day $d")
-    # Nodos de clientes en color rosa
-    scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :hotpink, markersize = 20, legend = :topleft)
+    # Nodos de clientes
+    scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :lightblue, markersize = 20, legend = :topleft)
 
     # define las coordenadas de las rutas
     local pointsArray = []
+    # Etiquetas de los clientes
+    for i in C
+        annotate!(coords[i][1], coords[i][2], text("$i", :black))
+    end
     #Añado el deposito visiblemente
-    scatter!([10], [12], label = "Depot", color = :red, markersize = 30, legend = :topleft)
+    scatter!([10], [12], label = "Depot", color = :blue, markersize = 30, legend = :topleft)
     #Cambio el tamaño para que sea más visible
     plot!(size=(2040,1080))
 
@@ -147,11 +165,10 @@ for d in days
         if(isempty(coordsRoute)) 
             continue
         end
-
         pushfirst!(coordsRoute, (10,12))
         push!(coordsRoute, (10,12))
 
-        plot!(coordsRoute, label =  "Vehicle $k", shape = :circle, arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = :rainbow)
+        plot!(coordsRoute, label =  "Vehicle $k", arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = palette(:Set2))
         
     end
     display(p)
