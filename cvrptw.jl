@@ -130,12 +130,12 @@ for d in days
     local p = plot()
     title!("Capacitated Vehicle Routing Problem With Consistent Days. Day $d")
     # Nodos de clientes en color rosa
-    scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :hotpink, markersize = 15, legend = :topleft)
+    scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :hotpink, markersize = 20, legend = :topleft)
 
     # define las coordenadas de las rutas
     local pointsArray = []
     #Añado el deposito visiblemente
-    scatter!([10], [12], label = "Depot", color = :red, markersize = 20, legend = :topleft)
+    scatter!([10], [12], label = "Depot", color = :red, markersize = 30, legend = :topleft)
     #Cambio el tamaño para que sea más visible
     plot!(size=(2040,1080))
 
@@ -151,7 +151,8 @@ for d in days
         pushfirst!(coordsRoute, (10,12))
         push!(coordsRoute, (10,12))
 
-        plot!(coordsRoute, label =  "Route $d, Vehicle $k", arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = :rainbow)
+        plot!(coordsRoute, label =  "Vehicle $k", shape = :circle, arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = :rainbow)
+        
     end
     display(p)
     savefig("Solution_Figure_Day_$d.png")
