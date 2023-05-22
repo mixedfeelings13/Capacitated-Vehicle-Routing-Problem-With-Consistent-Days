@@ -17,17 +17,11 @@ M = 1000 # Valor grande para la restricción
 C = 1:n # 1 a n = clientes
 V = 1:K # 1 a K = vehículos
 days = 1:5
-epsilon = 0.1
+Tmax = 100
 
 # Número de demanda aleatoria
 demands = [[rand(0:8) for i in C] for d in days]
-# println(d)
-# println(demands)
 # si imprime 3 demandas para 3 dias de 15 clientes
-
-# Ventanas de tiempo aleatorias consistentes
-earliest_start = [[rand(0:10) for i in C] for d in days]
-latest_end = [[earliest_start[d][i] + rand(10:30) for i in C] for d in days]
 
 # Generar coordenadas aleatorias para los clientes
 coords = [(rand(1:20), rand(1:20)) for i in C]
@@ -53,7 +47,6 @@ model = Model(Gurobi.Optimizer)
 @variable(model, x[C, C, V, days], Bin) # Decisión 0 o 1 para x, vehículo va o no va a un cliente
 @variable(model, arrival_time[C, days] >= 0)
 @variable(model, load[C, days])
-@variable(model, avg_arrival_time[C] >= 0)
 
 # Función objetivo
 @objective(model, Min, sum(c[i, j] * x[i, j, k, d] for i in C, j in C, k in V, d in days))
@@ -63,15 +56,6 @@ model = Model(Gurobi.Optimizer)
 @constraint(model, exit_once[i in C], sum(x[j, i, k, d] for j in C, d in days, k in V) == 1)
 # Restricción de capacidad para cada vehículo
 @constraint(model, capacity[k in V, d in days], sum(demands[d][i] * x[i, j, k, d] for i in C, j in C) <= Q) 
-# Restricción de ventana de tiempo
-# llegada al cliente i en dia d no debe exceder latest_end
-# llegada al cliente i en dia d + hora de visita >= earliest_start
-for d in days
-    for i in C
-        @constraint(model, sum(x[i, j, k, d] for j in C, k in V) + arrival_time[i,d] <= latest_end[d][i])
-        @constraint(model, sum(x[i, j, k, d] for j in C, k in V) + arrival_time[i,d] >= earliest_start[d][i])
-    end
-end
 # Restricción de los días
 for d in days
     for i in C
@@ -82,18 +66,8 @@ for d in days
         end
     end
 end
-# Cálculo del tiempo de llegada medio
-for i in C
-    @constraint(model, avg_arrival_time[i] == sum(arrival_time[i, d] for d in days) / length(days))
-end
-
-# Restricción de consistencia para que los tiempos de llegada sean iguales o similares
-for d in days
-    for i in C
-        @constraint(model, arrival_time[i, d] <= avg_arrival_time[i] + epsilon)
-        @constraint(model, arrival_time[i, d] >= avg_arrival_time[i] - epsilon)
-    end
-end
+# Restricción de consistencia temporal
+@constraint(model, time_constraint[i in C, d in days, e in days; e < d], arrival_time[i, d] - arrival_time[i, e] <= Tmax)
 
 optimize!(model)
 
