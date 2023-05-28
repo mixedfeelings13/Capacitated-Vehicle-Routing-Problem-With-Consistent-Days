@@ -33,7 +33,7 @@ L         = 20  # Tiempo maximo que puede esperar un cliente
 ## Generamos datos de entrada
 coords = [(rand(1:R), rand(1:R)) for i in clients] # Coordenadas de los clientes
 pushfirst!(coords, (11,13)) # Coordenadas del deposito
-println(coords)
+# println(coords)
 distances = [Euclidean()(coords[i], coords[j]) for i in locations, j in locations] # Distancias entre clientes
 
 demands = [rand(1:100) < Pd ? rand(1:client_demand) : 0 for i in clients, d in days] # Demanda de cada cliente en cada dia<
