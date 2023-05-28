@@ -5,144 +5,131 @@ using Random
 using Distances
 using Colors
 
+
 # Semilla aleatoria para el paquete Random
 Random.seed!()
 
+# Definimos las variables de los datos
+V = 10 # número de coordenadas
+client_demand = 1 # Demanda maxima por cliente
 
-n = 30 # número de clientes
-Q = 8 # capacidad de los vehículos
-K = 5 # número de vehículos
-M = 1000 # Valor grande para la restricción
-# Variables para limpiar
-C = 1:n # 1 a n = clientes
-V = 1:K # 1 a K = vehículos
-days = 1:5
-Tmax = 100
+K = 5  #  número de vehiculos
+vehicle_capacity = 10 # Capacidad maxima del vehiculo
 
-# Número de demanda aleatoria
-demands = [[rand(0:8) for i in C] for d in days]
-# si imprime 3 demandas para 3 dias de 15 clientes
 
-# Generar coordenadas aleatorias para los clientes
-coords = [(rand(1:20), rand(1:20)) for i in C]
+D = 3  # número de días
 
-# Generar matriz de distancias aleatorias
-c = zeros(n, n)  # Inicializar la matriz de distancias
+locations = 1:V # Conjunto de destinos
+clients   = 2:V # Conjunto de clientes
+vehicles  = 1:K # Conjunto de vehiculos
+days      = 1:D # Conjunto de dias
 
-for i in 1:n
-    for j in 1:n
-        if i != j
-            # Generar distancia aleatoria en el rango de 1 a 6
-            d = Euclidean()(coords[i], coords[j])
-            # Asignar la distancia a la matriz de distancias
-            c[i, j] = d
-        end
-    end
-end
+Md        = 5000 # Valor grande para la restricción de cargas
+Mt        = 5000 # Valor grande para la restricción de tiempos
+Pd        = 50  # Probabilidad de que el cliente tenga una demanda en un dia determinado
+R         = 20  # longitud máxima de cada distancia
+L         = 20  # Tiempo maximo que puede esperar un cliente
 
-# Creación del modelo
+## Generamos datos de entrada
+coords = [(rand(1:R), rand(1:R)) for i in clients] # Coordenadas de los clientes
+pushfirst!(coords, (11,13)) # Coordenadas del deposito
+println(coords)
+distances = [Euclidean()(coords[i], coords[j]) for i in locations, j in locations] # Distancias entre clientes
+
+demands = [rand(1:100) < Pd ? rand(1:client_demand) : 0 for i in clients, d in days] # Demanda de cada cliente en cada dia<
+
+# Creamos el modelo
 model = Model(Gurobi.Optimizer)
 
-# Variable de decisión
-@variable(model, x[C, C, V, days], Bin) # Decisión 0 o 1 para x, vehículo va o no va a un cliente
-@variable(model, arrival_time[C, days] >= 0)
-@variable(model, load[C, days])
+# Variables de decisión
+@variable(model, x[locations, locations, vehicles, days], Bin) # 1 si el vehiculo k va del cliente i al cliente j en el dia d
+
+@variable(model, time[clients, vehicles, days] >= 0) # Tiempo de llegada al cliente i en el dia d
+
+@variable(model, load[clients, vehicles, days] >= 0) # Carga del vehiculo k al llegar al cliente i en el dia d
+
 
 # Función objetivo
-@objective(model, Min, sum(c[i, j] * x[i, j, k, d] for i in C, j in C, k in V, d in days))
+@objective(model, Min, sum(distances[i,j]*x[i,j,k,d] for i in locations, j in locations, k in vehicles, d in days)) # Minimizar la distancia total recorrida
 
-# Restricción de visita única para cada cliente
-@constraint(model, visit_once[i in C], sum(x[i, j, k, d] for j in C, d in days, k in V) == 1)
-@constraint(model, exit_once[i in C], sum(x[j, i, k, d] for j in C, d in days, k in V) == 1)
-# Restricción de capacidad para cada vehículo
-@constraint(model, capacity[k in V, d in days], sum(demands[d][i] * x[i, j, k, d] for i in C, j in C) <= Q) 
-# Restricción de los días
-for d in days
-    for i in C
-        for j in C
-            for k in V 
-                @constraint(model, load[j, d] >= load[i, d] + demands[d][i] * x[i, j, k, d] - M * (1 - x[i, j, k, d]))
-            end
-        end
-    end
-end
-# Restricción de consistencia temporal
-@constraint(model, time_constraint[i in C, d in days, e in days; e < d], arrival_time[i, d] - arrival_time[i, e] <= Tmax)
+
+# Restricciones
+# Restricción de flujo teniendo en cuenta el deposito
+@constraint(model, [i in clients, d in days], sum(x[i,j,k,d] for j in clients, k in vehicles) == 1) # Cada cliente i debe ser visitado exactamente una vez en el dia d
+@constraint(model, [j in clients, d in days], sum(x[i,j,k,d] for i in clients, k in vehicles) == 1) # Cada cliente j debe ser visitado exactamente una vez en el dia d
+
+# # Restricción de carga
+# @constraint(model, [i in clients, j in clients, d in days],  load[j,d] >= load[i,d] + demands[i-1,d] * x[i, j, d] - Md * (1 - x[i, j, d]))
+# # Restricción de tiempo de llegada
+# @constraint(model, [i in clients, j in clients, d in days],  time[j,d] >= time[i,d] + distances[i,j] * x[i, j, d] - Mt * (1 - x[i, j, d]))
+# con K
+@constraint(model, [i in clients, j in clients, k in vehicles, d in days],  load[j,k,d] >= load[i,k,d] + demands[i-1,d] * x[i, j, k, d] - Md * (1 - x[i, j, k, d]))
+# Restricción de tiempo de llegada
+@constraint(model, [i in clients, j in clients, k in vehicles, d in days],  time[j,k,d] >= time[i,k,d] + distances[i,j] * x[i, j, k, d] - Mt * (1 - x[i, j, k, d]))
+
+# Restricción de capacidad
+@constraint(model, capacity[k in vehicles, d in days], sum(load[i,k,d] for i in clients) <= vehicle_capacity) # La carga del vehiculo k en el dia d no puede superar la capacidad del vehiculo
+
+# Restricción de tiempo
+@constraint(model, time_limit[i in clients, k in vehicles, d in days], time[i,k,d] <= L) # El tiempo de espera del cliente i en el dia d no puede superar el tiempo maximo de espera
+
+# Cada vehiculo debe empezar y terminar en el deposito
+@constraint(model, [k in vehicles, d in days], sum(x[1,j,k,d] for j in clients) == 1) # Cada vehiculo k debe empezar en el deposito en el dia d
+
+
 
 optimize!(model)
 
 # Obtener la solución de las variables de decisión
 solution = value.(x)
-arrival_times = value.(arrival_time)
+times = value.(time)
 
-# Imprimir la ruta de cada vehículo
-print("\t")
-for d in days
-    printstyled("\tDía $d\t\t|"; color = :blue)
-end
-print("\n")
-routes = Dict{Int, Vector{Int}}()
-for k in V
-    for d in days
-        routes[d] = [i for i in C if any(solution[i, j, k, d] > 0.5 for j in C)]
-    end
-    printstyled("Vehículo $k:\t"; color = :green)
-    for d in days
-        route = routes[d]
-        tabs="\t"
-
-        if isempty(route)
-            route = "No hay ruta"
-        #Convertir la ruta en strings y unirlas para saber cuantos caracteres ocupa en la terminal
-        elseif(length(join(string.(route), ", ")) < 6)         
-            tabs="\t\t"
-        end
-        print("$route$tabs|\t")
-    end
-    print("\n")
-end
-println()
 
 routes = Dict{Int, Dict{Int, Vector{Int}}}()
 
 for d in days
     routes[d] = Dict{Int, Vector{Int}}()
-    for k in V
-        route = [i for i in C if any(solution[i, j, k, d] > 0.5 for j in C)]
+    println("Day $d:")
+    for k in vehicles
+        route = [i for i in locations if any(solution[i, j, k, d] > 0.5 for j in locations)]
+        push!(route, 1)
+        if length(route) == 2
+            routes[d][k] = []
+            continue
+        end
         routes[d][k] = route
+
+        println("Vehicle $k: ", route)
     end
 end
+
 
 # Mostrar el gráfico
 for d in days
     local p = plot()
     title!("Capacitated Vehicle Routing Problem With Consistent Days. Day $d")
     # Nodos de clientes
-    scatter!([coords[i][1] for i in C], [coords[i][2] for i in C], label = "Clients", color = :lightblue, markersize = 20, legend = :topleft)
+    scatter!([coords[i][1] for i in locations], [coords[i][2] for i in locations], label = "Clients", color = :lightblue, markersize = 20, legend = :outertopright)
 
     # define las coordenadas de las rutas
     local pointsArray = []
     # Etiquetas de los clientes
-    for i in C
-        annotate!(coords[i][1], coords[i][2], text("$i", :black))
+    for i in clients
+        annotate!(coords[i][1], coords[i][2], text("$(i-1)", :black))
     end
     #Añado el deposito visiblemente
-    scatter!([10], [12], label = "Depot", color = :blue, markersize = 30, legend = :topleft)
+    scatter!(coords[1], label = "Depot", color = :blue, markersize = 30, legend = :outertopright)
     #Cambio el tamaño para que sea más visible
     plot!(size=(2040,1080))
 
     # Creo lineas para las rutas que sean visibles.
-    for k in V
+    for k in vehicles
         route = routes[d][k]
         coordsRoute = [coords[i] for i in route]
-        ## If coordsRoute is empty, continue
         if(isempty(coordsRoute)) 
             continue
         end
-        pushfirst!(coordsRoute, (10,12))
-        push!(coordsRoute, (10,12))
-
-        plot!(coordsRoute, label =  "Vehicle $k", arrow=(:closed, 2.0),linewidth = 5, legend = :topleft, palette = palette(:Set2))
+        plot!(coordsRoute, label =  "Vehicle $k", arrow=(:closed, 2.0), linewidth = 5, legend = :outertopright, palette = palette(:Set2))
         
     end
     display(p)
