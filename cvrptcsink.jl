@@ -143,6 +143,9 @@ for d in days
         plot!(coordsRoute, label =  "Route", arrow=(:closed, 2.0), linewidth = 5, legend = :outertopright, palette = palette(:Set2))
 
     
+
+
+
     # Creo lineas para las rutas que sean visibles.
     # for k in vehicles
     #     route = routes[d][k]
