@@ -4,11 +4,11 @@ using JuMP, Gurobi, Plots, Random, Distances, Colors
 Random.seed!()
 
 # Define the data variables
-U = 9                 # number of coordinates
-client_demand = 18     # Maximum demand per client
-vehicle_capacity = 48  # Maximum vehicle capacity
+U = 8                # number of coordinates
+client_demand = 5   # Maximum demand per client
+vehicle_capacity = 15  # Maximum vehicle capacity
 D = 3                 # number of days
-K = 10                 # number of vehicles
+K = 5                 # number of vehicles
 
 locations = 1:U       # Set of destinations
 clients   = 2:U       # Set of clients (excluding the depot)
@@ -16,9 +16,9 @@ days      = 1:D       # Set of days
 
 Md        = vehicle_capacity # Large value for the load constraint
 Mt        = 5000             # Large value for the time constraint
-Pd        = 0.7              # Probability that a client has a demand on a given day
+Pd        = 0.75              # Probability that a client has a demand on a given day
 R         = 30               # Maximum length of each distance
-L         = 20               # Maximum time a client can wait
+L         = 10               # Maximum time a client can wait
 
 # Generate input data
 coords = [(rand(1:R), rand(1:R)) for i in clients] # Client coordinates
@@ -29,7 +29,6 @@ distances = [Euclidean()(coords[i], coords[j]) for i in locations, j in location
 # Client demands making sure that the depot has no demand having in mind that Pd
 demands = [rand(0:client_demand) * (rand() < Pd) for i in locations, d in days]
 
-println(demands)
 
 # Model
 model = Model(Gurobi.Optimizer)
@@ -118,6 +117,7 @@ for d in days
             push!(subroutes[d], copy(current_subroute[d]))
         end
     for s in subroutes[d]
+        sort!(s, by = i -> times[i, d])
         pushfirst!(s, 1)
         push!(s, 1)
     end
@@ -125,12 +125,16 @@ end
 
 # Print the routes separately for each day
 for d in days
-    println("Day $d: $(subroutes[d])")
-    if haskey(routes, d)
-        route = routes[d]
-        clients_in_route = filter(i -> i != 1, route)
-        for i in clients_in_route
-            println("Client $i - Demand: $(demands[i, d]) - Arrival Time: $(times[i, d])")
+    printstyled("Day $d -> Routes: $(subroutes[d])\n", color = :red, bold = true)
+    # take each client in the subroutes and print them
+    if haskey(subroutes, d) 
+        for s in subroutes[d]
+            printstyled("Route: $(s)\n", color = :blue, bold = true)
+            for i in s
+                if i != 1
+                    println("Client $i - Demand: $(demands[i, d]) - Arrival Time: $(times[i, d])")
+                end
+            end
         end
     else
         println("No route for this day")
